@@ -1,0 +1,112 @@
+---
+title: "Lecture A03"
+author: "David Mendez"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Geocentric models
+
+## Video
+
+Height by weigth
+
+```{r}
+library(rethinking)
+data("Howell1")
+d <- Howell1[Howell1$age>=18,]
+```
+
+```{r}
+plot(d$height, d$weight, "p")
+```
+
+Height and unobserved stuff influence weight W=f(H,U) -\> W = beta\*H+U
+
+```{r}
+sim_weight <- function ( H, b, sd){
+  U <- rnorm( length(H), 0, sd)
+  W <- b*H + U
+  return(W)
+}
+
+```
+
+We can generate fake data with that model
+
+```{r}
+H <- runif(200, min=130, max=170)
+W <- sim_weight(H, b=0.5, sd=5)
+plot(W ~H, col=2, lwd=3)
+```
+
+our estimator is the model we want to fit -\> E(W\|H)=alpha + beta\*H
+
+```{r}
+m3.1 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a*b*H,
+    a ~ dnorm(0,10),
+    b ~dunif(0,1),
+    sigma ~dunif(0,10)
+  ), data=list(W=W,H=H)
+)
+```
+
+## Book
+
+```{r}
+pos <- replicate( 1000 , sum( runif(16,-1,1) ) )
+plot(density(pos))
+```
+
+```{r}
+prod( 1 + runif(12,0,0.1) )
+growth <- replicate( 10000 , prod( 1 + runif(12,0,0.1) ) )
+dens( growth , norm.comp=TRUE )
+```
+
+```{r}
+data(Howell1)
+d <- Howell1
+precis( d )
+d2 <- d[ d$age >= 18 , ]
+```
+
+```{r}
+curve( dnorm( x , 178 , 20 ) , from=100 , to=250 )
+curve( dunif( x , 0 , 50 ) , from=-10 , to=60 )
+```
+
+```{r}
+sample_mu <- rnorm( 1e4 , 178 , 20 )
+sample_sigma <- runif( 1e4 , 0 , 50 )
+prior_h <- rnorm( 1e4 , sample_mu , sample_sigma )
+dens( prior_h )
+```
+
+```{r}
+mu.list <- seq( from=150, to=160 , length.out=100 )
+sigma.list <- seq( from=7 , to=9 , length.out=100 )
+post <- expand.grid( mu=mu.list , sigma=sigma.list )
+post$LL <- sapply( 1:nrow(post) , function(i) sum(
+dnorm( d2$height , post$mu[i] , post$sigma[i] , log=TRUE ) ) )
+post$prod <- post$LL + dnorm( post$mu , 178 , 20 , TRUE ) +
+dunif( post$sigma , 0 , 50 , TRUE )
+post$prob <- exp( post$prod - max(post$prod) )
+contour_xyz( post$mu , post$sigma , post$prob )
+image_xyz( post$mu , post$sigma , post$prob )
+```
+
+```{r}
+sample.rows <- sample( 1:nrow(post) , size=1e4 , replace=TRUE ,
+prob=post$prob )
+sample.mu <- post$mu[ sample.rows ]
+sample.sigma <- post$sigma[ sample.rows ]
+plot( sample.mu , sample.sigma , cex=0.5 , pch=16 , col=col.alpha(rangi2,0.1) )
+```
