@@ -72,7 +72,7 @@ The new lectures for 2026 will appear as links in the table below. There is a se
 | 02 | 13 January | Beginner | <[Garden of Forking Data](https://www.youtube.com/watch?v=pGVkCWlXnlg)> | Chapters 2 & 3
 |    | 16 January | Experienced | <[Multilevel Model Expansion](https://www.youtube.com/watch?v=Nv2rm1s9q6I)> | Chapter 13 
 | 03 | 20 January | Beginner | <[Geocentric Models](https://www.youtube.com/watch?v=JX_UyidsQNg)> | Chapter 4
-|    | 23 January | Experienced | Correlated Features | Chapter 13 
+|    | 23 January | Experienced | <[Correlated Features](https://www.youtube.com/watch?v=MBhjDMXtANE)> | Chapter 13 
 | 04 | 27 January | Beginner | Categories & Curves | Chapter 4
 |    | 30 January | Experienced | Social Networks | Chapter 14 
 | 05 | 3 February | Beginner | Elemental Confounds | Chapter 5
