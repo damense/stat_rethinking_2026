@@ -459,6 +459,7 @@ yi ∼ Normal(μ, σ)
 σ ∼ Exponential(1)
 
 ```         
+The first line is the likelyhood.
 yi ∼ Normal(μ, σ) 
 ```
 
@@ -470,14 +471,15 @@ In the model definition just above, how many parameters are in the posterior dis
 2 parameters
 ```
 
-#### 4E3.
+#### 4E3. v
 
 Using the model definition above, write down the appropriate form of Bayes’ theorem that includes the proper likelihood and priors.
 
 ```         
+Pr(μ,σ|y)=Pr(y|μ,σ)*Pr(μ)*Pr(σ)/integral(integral(Pr(y|μ,σ)*Pr(μ)*Pr(σ)dμdσ))
 ```
 
-#### 4E4.
+#### 4E4. v
 
 In the model definition below, which line is the linear model?
 
@@ -491,13 +493,21 @@ yi ∼ Normal(μ, σ)
 
 σ ∼ Exponential(2)
 
-#### 4E5.
+```         
+μi = α + βxi
+```
+
+#### 4E5. v
 
 In the model definition just above, how many parameters are in the posterior distribution?
 
+```         
+3 parameters: α, β and σ
+```
+
 ### Medium
 
-#### 4M1.
+#### 4M1. v
 
 For the model definition below, simulate observed y values from the prior (not the posterior).
 
@@ -507,11 +517,30 @@ yi ∼ Normal(μ, σ)
 
 σ ∼ Exponential(1)
 
-#### 4M2.
+```{r}
+library(rethinking)
+set.seed(31)
+s = rexp(1e4)
+mu = rnorm(1e4, 0, 10)
+yi = rnorm(1e4, mu, s)
+dens(yi)
+```
+
+#### 4M2. v
 
 Translate the model just above into a quap formula.
 
-#### 4M3.
+```{r}
+m4m2 <- quap(
+        alist(
+        yi ~ dnorm(mu, s),
+        mu ~ dnorm(0, 10),
+        s ~ dexp(1)
+        )
+)
+```
+
+#### 4M3. v
 
 Translate the quap model formula below into a mathematical model definition.
 
@@ -521,21 +550,47 @@ mu \<- a + b\*x,
 
 a \~ dnorm( 0 , 10 ),
 
-b \~ dunif( 0 , 1 ), s
+b \~ dunif( 0 , 1 ),
 
-igma \~ dexp( 1 )
+sigma \~ dexp( 1 )
 
-#### 4M4.
+```{r}
+sigma = dexp(1)
+a = dnorm(0,10)
+b = dunif(0,1)
+mu = a+b*x
+y = dnorm(mu, sigma)
+```
+
+#### 4M4. v
 
 A sample of students is measured for height each year for 3 years. After the third year, you want to fit a linear regression predicting height using year as a predictor. Write down the mathematical model definition for this regression, using any variable names and priors you choose. Be prepared to defend your choice of priors.
 
-#### 4M5.
+```{r}
+sigma = dexp(1)
+a=dunif(100,200)
+b=dnorm(5/2000, sd=10/2000)
+mu = a+ b*year
+height = dnorm(mu, sigma)
+```
+
+#### 4M5. v
 
 Now suppose I remind you that every student got taller each year. Does this information lead you to change your choice of priors? How?
 
-#### 4M6.
+```         
+Yes, I'd reduce the sd of the normal distribution of the slope to make sure it's always positive
+b=dnorm(5/2000, 1/2000)
+```
+
+#### 4M6. v
 
 Now suppose I tell you that the variance among heights for students of the same age is never more than 64cm. How does this lead you to revise your priors?
+
+```         
+sigma is therefore never higher than 8. That was the case already so I won't change it. That also would make me consider the a prior which I have right now as dunif (100,200)
+I'd change that to dunif(140,180)
+```
 
 #### 4M7.
 
@@ -590,3 +645,7 @@ Simulate the prior predictive distribution for the cherry blossom spline in the 
 #### 4H8.
 
 The cherry blossom spline in the chapter used an intercept α, but technically it doesn’t require one. The first basis functions could substitute for the intercept. Try refitting the cherry blossom spline without the intercept. What else about the model do you need to change to make this work?
+
+#### Extra
+
+The data in data(bangladesh) are 1934 women from the 1989 Bangladesh Fertility Survey. For each woman, we know which district she lived in, her number of living.children, her age.centered, whether she lived in an urban center,and finally whether or not she used contraception (use.contraception). In the previous homework, you estimated the effect of surviving children on contraceptive use. Now I want you to repeat that model, but allowing the effect of children to vary by district and to be correlated with the other effects that vary by district. That is, use a model with correlated varying effects, like in lecture. Compare the posterior predictions to the previous model. How do the inferences change, if at all?
