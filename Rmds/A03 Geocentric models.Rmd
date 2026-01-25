@@ -592,17 +592,95 @@ sigma is therefore never higher than 8. That was the case already so I won't cha
 I'd change that to dunif(140,180)
 ```
 
-#### 4M7.
+#### 4M7. v
 
 Refit model m4.3 from the chapter, but omit the mean weight xbar this time. Compare the new model’s posterior to that of the original model. In particular, look at the covariance among the parameters. What is different? Then compare the posterior predictions of both models.
 
-#### 4M8.
+```{r}
+# load data again, since it's a long way back
+library(rethinking)
+data(Howell1); d <- Howell1; d2 <- d[ d$age >= 18 , ]
+# define the average weight, x-bar
+xbar <- mean(d2$weight)
+# fit model
+m4.3 <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b*( weight - xbar ) ,
+    a ~ dnorm( 178 , 20 ) ,
+    b ~ dlnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=d2 )
+m4.3b <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b*( weight  ) ,
+    a ~ dnorm( 178 , 20 ) ,
+    b ~ dlnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=d2 )
+```
+
+```{r}
+# define sequence of weights to compute predictions for
+# these values will be on the horizontal axis
+weight.seq <- seq( from=25 , to=70 , by=5 )
+# use link to compute mu
+# for each sample from posterior
+# and for each weight in weight.seq
+mu <- link( m4.3 , data=data.frame(weight=weight.seq) )
+mub <- link( m4.3b , data=data.frame(weight=weight.seq) )
+
+# use type="n" to hide raw data
+plot( mu ~ mub )
+# loop over samples and plot each mu value
+# for ( i in 1:100 ){
+#         points( weight.seq , mu[i,] , pch=16 , col="red" )
+#         points( weight.seq , mub[i,] , pch=16 , col="blue" )
+# }
+```
+
+#### 4M8. v
 
 In the chapter, we used 15 knots with the cherry blossom spline. Increase the number of knots and observe what happens to the resulting spline. Then adjust also the width of the prior on the weights—change the standard deviation of the prior and watch what happens. What do you think the combination of knot number and the prior on the weights controls?
 
+```{r}
+library(rethinking)
+data(cherry_blossoms)
+d <- cherry_blossoms
+d2 <- d[ complete.cases(d$doy) , ] # complete cases on doy
+num_knots <- 15
+knot_list <- quantile( d2$year , probs=seq(0,1,length.out=num_knots) )
+library(splines)
+B <- bs(d2$year,
+        knots=knot_list[-c(1,num_knots)] ,
+        degree=3 , intercept=TRUE )
+m4.7 <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + B %*% w ,
+    a ~ dnorm(100,10),
+    w ~ dnorm(0,10),
+    sigma ~ dexp(0.005)
+    ), data=list( D=d2$doy , B=B ) ,
+  start=list( w=rep( 0 , ncol(B) ) 
+              ) 
+  )
+post <- extract.samples( m4.7 )
+w <- apply( post$w , 2 , mean )
+mu <- link( m4.7 )
+mu_PI <- apply(mu,2,PI,0.97)
+plot( d2$year , d2$doy , col=col.alpha(rangi2,0.3) , pch=16 )
+shade( mu_PI , d2$year , col=col.alpha("black",0.5) )
+```
+
+```         
+The number of knots changes the shape a lot while changing the sigma doesn't have a big influence.
+```
+
 ### Hard
 
-#### 4H1.
+#### 4H1. v
 
 The weights listed below were recorded in the !Kung census, but heights were not recorded for these individuals. Provide predicted heights and 89% intervals for each of these individuals. That is, fill in the table below, using model-based predictions.
 
@@ -618,17 +696,137 @@ Individual /weight /expected height/ 89% interval
 
 5 /54.63
 
-#### 4H2.
+```{r}
+library(rethinking)
+data(Howell1); d <- Howell1; d2 <- d[ d$age >= 18 , ]
+# define the average weight, x-bar
+xbar <- mean(d2$weight)
+# fit model
+m4.3 <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b*( weight - xbar ) ,
+    a ~ dnorm( 178 , 20 ) ,
+    b ~ dlnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=d2 )
+post <- extract.samples( m4.3 )
+individuals <- c(46.95, 43.72, 64.78, 32.59, 54.63)
+for (i in 1:length(individuals)){
+        mu = post$a + post$b * ( individuals[i] - xbar )
+        mu.mean <- mean(mu)
+        pi_mu= PI(mu, prob = 0.89)
+        print(c(round(i,digits = 0),round(individuals[i], digits=2),
+                mu.mean,pi_mu))
+}
 
-Select out all the rows in the Howell1 data with ages below 18 years of age. If you do it right, you should end up with a new data frame with 192 rows in it. (a) Fit a linear regression to these data, using quap. Present and interpret the estimates. For every 10 units of increase in weight, how much taller does the model predict a child gets? (b) Plot the raw data, with height on the vertical axis and weight on the horizontal axis. Super- impose the MAP regression line and 89% interval for the mean. Also superimpose the 89% interval for predicted heights. (c) What aspects of the model fit concern you? Describe the kinds of assumptions you would change, if any, to improve the model. You don’t have to write any new code. Just explain what the model appears to be doing a bad job of, and what you hypothesize would be a better model.
+```
 
-#### 4H3.
+#### 4H2. v
+
+Select out all the rows in the Howell1 data with ages below 18 years of age. If you do it right, you should end up with a new data frame with 192 rows in it.
+
+```{r}
+d1 <- d[d$age<18,]
+dim(d1)
+```
+
+(a) Fit a linear regression to these data, using quap. Present and interpret the estimates. For every 10 units of increase in weight, how much taller does the model predict a child gets?
+
+```{r}
+m4h2a <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b*( weight ) ,
+    a ~ dnorm( 120 , 20 ) ,
+    b ~ dlnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=d1 )
+precis( m4h2a )
+```
+
+```         
+For every 10 units of weight, the expected increase in heigth is 10*b=27 units of heigth.
+```
+
+(b) Plot the raw data, with height on the vertical axis and weight on the horizontal axis. Super- impose the MAP regression line and 89% interval for the mean. Also superimpose the 89% interval for predicted heights.
+
+```{r}
+# define sequence of weights to compute predictions for
+# these values will be on the horizontal axis
+weight.seq <- seq( from=0 , to=50 , by=1 )
+# use link to compute mu
+# for each sample from posterior
+# and for each weight in weight.seq
+mu <- link( m4h2a , data=data.frame(weight=weight.seq) )
+# use type="n" to hide raw data
+plot( height ~ weight , d1 , type="n" )
+# loop over samples and plot each mu value
+for ( i in 1:100 )
+  points( weight.seq , mu[i,] , pch=16 , col=col.alpha(rangi2,0.1) )
+# summarize the distribution of mu
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.89 )
+mu.HPDI <-  apply( mu , 2 , HPDI )
+# plot raw data
+# fading out points to make line and interval more visible
+plot( height ~ weight , data=d1 , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( weight.seq , mu.mean )
+# plot a shaded region for 89% PI
+shade( mu.PI , weight.seq )
+```
+
+(c) What aspects of the model fit concern you? Describe the kinds of assumptions you would change, if any, to improve the model. You don’t have to write any new code. Just explain what the model appears to be doing a bad job of, and what you hypothesize would be a better model.
+
+```         
+The model does an alright job between 10 and 30 units of weight but fails completely outside of those bounds. the data looks very non linear and the data after 30 units of weight flattens out which forces the model to show a lower slope than the data.
+```
+
+#### 4H3. v
 
 Suppose a colleague of yours, who works on allometry, glances at the practice problems just above. Your colleague exclaims, “That’s silly. Everyone knows that it’s only the logarithm of body weight that scales with height!” Let’s take your colleague’s advice and see what happens.
 
 (a) Model the relationship between height (cm) and the natural logarithm of weight (log-kg). Use the entire Howell1 data frame, all 544 rows, adults and non-adults. Can you interpret the resulting estimates?
 
+    ```{r}
+    d$logweigth <- log(d$weight)
+    m4h3a <- quap(
+      alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b*( logweigth ) ,
+        a ~ dnorm( 120 , 20 ) ,
+        b ~ dlnorm( 0 , 1 ) ,
+        sigma ~ dunif( 0 , 50 )
+        ) , data=d )
+    precis( m4h3a )
+    ```
+
 (b) Begin with this plot: plot( height \~ weight , data=Howell1 ). Then use samples from the quadratic approximate posterior of the model in (a) to superimpose on the plot: (1) the predicted mean height as a function of weight, (2) the 97% interval for the mean, and (3) the 97% interval for predicted heights.
+
+    ```{r}
+    # define sequence of weights to compute predictions for
+    # these values will be on the horizontal axis
+    weight.seq <- seq( from=1 , to=60 , by=1 )
+    # use link to compute mu
+    # for each sample from posterior
+    # and for each weight in weight.seq
+    mu <- link( m4h3a , data=data.frame(logweigth=log(weight.seq)) )
+    plot( height ~ weight , data=Howell1 )
+    for ( i in 1:100 )
+      points( weight.seq , mu[i,] , pch=16 , col=col.alpha(rangi2,0.1) )
+    # summarize the distribution of mu
+    mu.mean <- apply( mu , 2 , mean )
+    mu.PI <- apply( mu , 2 , PI , prob=0.97 )
+    mu.HPDI <-  apply( mu , 2 , HPDI )
+    # plot raw data
+    # fading out points to make line and interval more visible
+    plot( height ~ weight , data=d , col=col.alpha(rangi2,0.5) )
+    # plot the MAP line, aka the mean mu for each weight
+    lines( weight.seq , mu.mean )
+    # plot a shaded region for 89% PI
+    shade( mu.PI , weight.seq )
+    ```
 
 #### 4H4.
 
