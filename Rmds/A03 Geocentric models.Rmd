@@ -828,13 +828,155 @@ Suppose a colleague of yours, who works on allometry, glances at the practice pr
     shade( mu.PI , weight.seq )
     ```
 
-#### 4H4.
+#### 4H4. v
 
-Plot the prior predictive distribution for the parabolic polynomial regression model in the chapter. You can modify the code that plots the linear regression prior predictive distribution. Can you modify the prior distributions of α, β1, and β2 so that the prior predictions stay within the bio- logically reasonable outcome space? That is to say: Do not try to fit the data by hand. But do try to keep the curves consistent with what you know about height and weight, before seeing these exact data.
+Plot the prior predictive distribution for the parabolic polynomial regression model in the chapter. You can modify the code that plots the linear regression prior predictive distribution. Can you modify the prior distributions of α, β1, and β2 so that the prior predictions stay within the biologically reasonable outcome space? That is to say: Do not try to fit the data by hand. But do try to keep the curves consistent with what you know about height and weight, before seeing these exact data.
 
-#### 4H5.
+```{r}
+library(rethinking)
+data(Howell1)
+d <- Howell1
+d$weight_s <- d$weight
+d$weight_s2 <- d$weight_s^2
+m4h4a <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b1*weight_s + b2*weight_s2 ,
+    a ~ dnorm( 178 , 20 ) ,
+    b1 ~ dlnorm( 0 , 1 ) ,
+    b2 ~ dnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=d )
+```
+
+```{r}
+# define sequence of weights to compute predictions for
+# these values will be on the horizontal axis
+weight.seq <- seq( from=4 , to=60 , by=1 )
+# use link to compute mu
+# for each sample from posterior
+# and for each weight in weight.seq
+mu <- link( m4h4a , data=data.frame(weight_s=weight.seq,
+                                    weight_s2 = weight.seq^2) )
+plot( height ~ weight , data=Howell1 )
+for ( i in 1:100 )
+  points( weight.seq , mu[i,] , pch=16 , col=col.alpha(rangi2,0.1) )
+# summarize the distribution of mu
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.97 )
+mu.HPDI <-  apply( mu , 2 , HPDI )
+# plot raw data
+# fading out points to make line and interval more visible
+plot( height ~ weight , data=d , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( weight.seq , mu.mean )
+# plot a shaded region for 89% PI
+shade( mu.PI , weight.seq )
+```
+
+#### 4H5. v
 
 Return to data(cherry_blossoms) and model the association between blossom date (doy) and March temperature (temp). Note that there are many missing values in both variables. You may consider a linear model, a polynomial, or a spline on temperature. How well does temperature trend predict the blossom trend?
+
+```{r}
+library(rethinking)
+data(cherry_blossoms)
+data_cherry <- cherry_blossoms
+data_cherry_full <- data_cherry[!is.na(data_cherry$doy) & !is.na(data_cherry$temp) ,]
+```
+
+```{r}
+# linear
+m4h5a <- quap(
+  alist(
+    doy ~ dnorm( mu , sigma ) ,
+    mu <- a + b*temp ,
+    a ~ dnorm( 90 , 20 ) ,
+    b ~ dlnorm( 0 , 2 ),
+    sigma ~ dunif( 0 , 50 )
+    ) , data=data_cherry_full )
+
+temp.seq <- seq( from=min(data_cherry_full$temp) , 
+                 to=max(data_cherry_full$temp) , 
+                 by=0.01 )
+
+mu <- link( m4h5a , data=data.frame(temp=temp.seq) )
+plot( doy ~ temp , data=data_cherry_full )
+for ( i in 1:100 )
+  points( temp.seq , mu[i,] , pch=16 , col=col.alpha(rangi2,0.1) )
+
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.97 )
+mu.HPDI <-  apply( mu , 2 , HPDI )
+
+plot( doy ~ temp , data=data_cherry_full , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( temp.seq , mu.mean )
+# plot a shaded region for 89% PI
+shade( mu.PI , temp.seq )
+```
+
+```{r}
+# polynomial
+data_cherry_full$temp_2 <- data_cherry_full$temp^2
+m4h5b <- quap(
+  alist(
+    doy ~ dnorm( mu , sigma ) ,
+    mu <- a + b1*temp+b2*temp_2 ,
+    a ~ dnorm( 90 , 20 ) ,
+    b1 ~ dlnorm( 0 , 1 ) ,
+    b2 ~ dnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=data_cherry_full )
+
+temp.seq <- seq( from=min(data_cherry_full$temp) , 
+                 to=max(data_cherry_full$temp) , 
+                 by=0.01 )
+
+mu <- link( m4h5b , data=data.frame(temp=temp.seq,
+                                    temp_2=temp.seq^2) )
+plot( doy ~ temp , data=data_cherry_full )
+for ( i in 1:100 )
+  points( temp.seq , mu[i,] , pch=16 , col=col.alpha(rangi2,0.1) )
+
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.97 )
+mu.HPDI <-  apply( mu , 2 , HPDI )
+
+plot( doy ~ temp , data=data_cherry_full , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( temp.seq , mu.mean )
+# plot a shaded region for 89% PI
+shade( mu.PI , temp.seq )
+```
+
+```{r}
+num_knots <- 10
+knot_list <- quantile( data_cherry_full$temp , 
+                       probs=seq(0,1,length.out=num_knots) )
+library(splines)
+B <- bs(data_cherry_full$temp,
+        knots=knot_list[-c(1,num_knots)] ,
+        degree=3 , intercept=TRUE )
+m4h5c <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + B %*% w ,
+    a ~ dnorm(100,10),
+    w ~ dnorm(20,10),
+    sigma ~ dexp(1)
+    ), data=list( D=data_cherry_full$doy , B=B ) ,
+  start=list( w=rep( 0 , ncol(B) ) 
+              ) 
+  )
+
+
+mu <- link( m4h5c )
+mu_PI <- apply(mu,2,PI,0.97)
+plot( data_cherry_full$temp , data_cherry_full$doy , 
+      col=col.alpha(rangi2,0.3) , pch=16 )
+shade( mu_PI , data_cherry_full$temp , col=col.alpha("black",0.5) )
+```
 
 #### 4H6.
 
@@ -844,6 +986,38 @@ Simulate the prior predictive distribution for the cherry blossom spline in the 
 
 The cherry blossom spline in the chapter used an intercept α, but technically it doesn’t require one. The first basis functions could substitute for the intercept. Try refitting the cherry blossom spline without the intercept. What else about the model do you need to change to make this work?
 
-#### Extra
+#### Extra v
 
-The data in data(bangladesh) are 1934 women from the 1989 Bangladesh Fertility Survey. For each woman, we know which district she lived in, her number of living.children, her age.centered, whether she lived in an urban center,and finally whether or not she used contraception (use.contraception). In the previous homework, you estimated the effect of surviving children on contraceptive use. Now I want you to repeat that model, but allowing the effect of children to vary by district and to be correlated with the other effects that vary by district. That is, use a model with correlated varying effects, like in lecture. Compare the posterior predictions to the previous model. How do the inferences change, if at all?
+People get heavier with age. Using the Howell1 data, I want you to repeat the prior predictive simulation from Lecture A03 (and Chapter 4 of the book), but using only the height and age variables. The estimand should be the influence of age on height. Construct one or more plots showing the prior predictive distribution for height as a function of age, and try to justify your prior choices with some science or other.
+
+```{r}
+library(tidyverse)
+d= Howell1
+extra <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b*age ,
+    a ~ dnorm( 60 , 20 ) ,
+    b ~ dlnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=d )
+precis(extra)
+```
+
+```{r}
+set.seed(2971)
+N <- 100 # 100 lines
+a <- rnorm( N , 140 , 20 )
+b <- rlnorm( N , -1 , 1 )
+plot( NULL , 
+      xlim=range(d$age) , ylim=c(100,180) ,
+      xlab="age" , ylab="height" )
+abline( h=0 , lty=2 )
+abline( h=272 , lty=1 , lwd=0.5 )
+mtext( "b ~ dnorm(0,10)" )
+xbar <- mean(d$age)
+for ( i in 1:N ) curve( a[i] + b[i]*(x) ,
+                        from=min(d$age) , 
+                        to=max(d$age) , add=TRUE ,
+                        col=col.alpha("black",0.2) )
+```
