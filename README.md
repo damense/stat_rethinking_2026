@@ -81,7 +81,7 @@ There is a set of recorded lectures from 2023 that might also be of use, either 
 |    | 16 January | Experienced | <[Multilevel Model Expansion](https://www.youtube.com/watch?v=Nv2rm1s9q6I)> | Chapter 13 
 | 03 | 20 January | Beginner | <[Geocentric Models](https://www.youtube.com/watch?v=JX_UyidsQNg)> | Chapter 4
 |    | 23 January | Experienced | <[Correlated Features](https://www.youtube.com/watch?v=MBhjDMXtANE)> | Chapter 13 
-| 04 | 27 January | Beginner | Categories & Curves | Chapter 4
+| 04 | 27 January | Beginner | <[Categories & Causes](https://www.youtube.com/watch?v=GIdwLrW2nNo)> | Chapter 4
 |    | 30 January | Experienced | Social Networks | Chapter 14 
 | 05 | 3 February | Beginner | Elemental Confounds | Chapter 5
 |    | 6 February | Experienced | Gaussian Processes | Chapter 14 
