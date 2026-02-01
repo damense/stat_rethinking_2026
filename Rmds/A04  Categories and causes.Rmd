@@ -1,0 +1,87 @@
+---
+title: "A04  Categories and causes"
+author: "David Mendez"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exercises
+
+## Hard
+
+### 4H6.
+
+Simulate the prior predictive distribution for the cherry blossom spline in the chapter. Adjust the prior on the weights and observe what happens. What do you think the prior on the weights is doing?
+
+### 4H8.
+
+The cherry blossom spline in the chapter used an intercept α, but technically it doesn’t require one. The first basis functions could substitute for the intercept. Try refitting the cherry blossom spline without the intercept. What else about the model do you need to change to make this work?
+
+### extra v
+
+Using the Howell1 dataset, consider only the people younger than 13 years old. In this sample, estimate the causal effect of each month of growth on weight. Be sure to perform a prior predictive simulation to check and justify your priors. Also try to perform a validation of your model on synthetic data.
+
+```{r}
+library(rethinking)
+data(Howell1)
+d1 <- Howell1[Howell1$age<13,]
+```
+
+```{r}
+d1$age_months <- d1$age*12
+mA04exta <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b*age_months,
+    a ~ dnorm(50,15) ,
+    b ~ dunif(0,1) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=d1 )
+precis( mA04exta )
+```
+
+```{r}
+# prior predictive simulation
+set.seed(3101)
+N <- 100 # 100 lines
+a <- rnorm( N , 50 , 5 )
+b <- runif(N,0,1)
+plot( NULL , 
+      xlim=range(d1$age_months) , ylim=c(0,150) ,
+      xlab="age_months" , ylab="height" )
+# abline( h=0 , lty=2 )
+# abline( h=272 , lty=1 , lwd=0.5 )
+# mtext( "b ~ dnorm(0,10)" )
+#xbar <- mean(d2$weight)
+for ( i in 1:N ) curve( a[i] + b[i]*(x) ,
+                        from=min(d1$age_months) , 
+                        to=max(d1$age_months) , add=TRUE ,
+                        col=col.alpha("black",0.2) )
+```
+
+```{r}
+sim_height <- function ( age_months, b, sd){
+  U <- rnorm( length(age_months), 70, sd)
+  H <- b*age_months + U
+  return(H)
+}
+```
+
+```{r}
+set.seed(3101)
+age_months <- runif(10,0,12*12)
+H <- sim_height(age_months,b=0.5, sd=15)
+mA04extrab <- quap(
+  alist(
+    H ~ dnorm( mu , sigma ) ,
+    mu <- a + b*age_months,
+    a ~ dnorm(50,25) ,
+    b ~ dunif(0,1) ,
+    sigma ~ dunif( 0 , 50 )
+    ) , data=list(age_months=age_months, H=H) )
+precis( mA04extrab )
+```
