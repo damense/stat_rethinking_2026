@@ -1,0 +1,260 @@
+---
+title: "A05  Estimands and Estiplans"
+author: "David Mendez"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Book
+
+## 5.1. Spurious association
+
+```{r}
+library(rethinking)
+data("WaffleDivorce")
+d <- WaffleDivorce
+
+d$D <- standardize(d$Divorce)
+d$M <- standardize(d$Marriage)
+d$A <- standardize(d$MedianAgeMarriage)
+```
+
+```{r}
+m5.1 <- quap(
+        alist(
+                D  ~ dnorm(mu, sigma),
+                mu <- a+bA*A,
+                a  ~ dnorm(0,0.2),
+                bA ~ dnorm(0,0.5),
+                sigma ~dexp(1)
+                ), data = d
+        )
+precis(m5.1)
+```
+
+```{r}
+set.seed(3101)
+prior <- extract.prior(m5.1)
+mu <- link (m5.1, post=prior, data=list(A=c(-2,2)))
+plot(NULL, xlim=c(-2,2), ylim=c(-2,2))
+for (i in 1:150) lines(c(-2,2), mu[i,], col=col.alpha("black",0.4))
+```
+
+```{r}
+A_seq <- seq(from=-3, to=3.2, length.out=30)
+mu <- link(m5.1, data=list(A=A_seq))
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI)
+
+plot(D ~A, data=d, col=rangi2)
+lines(A_seq, mu.mean, lwd=2)
+shade(mu.PI, A_seq)
+```
+
+```{r}
+m5.2 <- quap(
+        alist(
+                D  ~ dnorm(mu, sigma),
+                mu <- a+bM*M,
+                a  ~ dnorm(0,0.2),
+                bM ~ dnorm(0,0.5),
+                sigma ~dexp(1)
+                ), data = d
+        )
+M_seq <- seq(from=-3, to=3.2, length.out=30)
+mu <- link(m5.2, data=list(M=M_seq))
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI)
+
+plot(D ~M, data=d, col=rangi2)
+lines(M_seq, mu.mean, lwd=2)
+shade(mu.PI, M_seq)
+```
+
+```{r}
+library(dagitty)
+DMA_dag2 <- dagitty('dag{D <- A -> M }')
+impliedConditionalIndependencies(DMA_dag2)
+```
+
+### 5.1.3. Multiple regression notation
+
+```{r}
+m5.3 <- quap(
+        alist(
+                D  ~ dnorm(mu, sigma),
+                mu <- a+bM*M+bA*A,
+                a  ~ dnorm(0,0.2),
+                bA ~ dnorm(0,0.5),
+                bM ~ dnorm(0,0.5),
+                sigma ~dexp(1)
+                ), data = d
+        )
+plot(coeftab(m5.1, m5.2, m5.3), par=c("bA","bM"))
+```
+
+### 5.1.5. Plotting multivariate posteriors
+
+```{r}
+m5.4 <- quap(
+        alist(
+              D  ~ dnorm(mu, sigma),
+              mu <- a+bAM*A,
+              a  ~ dnorm(0,0.2),
+              bAM ~ dnorm(0,0.5),
+              sigma ~dexp(1)
+              ), data = d  
+        )
+mu <- link(m5.4)
+mu_mean <- apply(mu, 2, mean)
+mu_resid <- d$M - mu_mean
+```
+
+#### 5.1.5.2. Posterior prediction plots
+
+```{r}
+mu <- link(m5.3)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+D_sim <- sim(m5.3, n=1e4)
+D_PI <- apply(D_sim, 2, PI)
+plot(mu_mean ~ d$D, col=rangi2, ylim=range(mu_PI),
+     xlab="Observed Divorce", ylab="Predicted Divorce")
+abline(a=0, b=1, lty=2)
+for (i in 1:nrow(d)) lines(rep(d$D[i],2), mu_PI[,i], col=rangi2)
+identify(x=d$D, y=mu_mean, labels = d$Loc)
+```
+
+```{r}
+m5.3_a <- quap(
+        alist(
+                ## A -> D <- M
+              D  ~ dnorm(mu, sigma),
+              mu <- a+bA*A+bM*M,
+              a  ~ dnorm(0,0.2),
+              bM ~ dnorm(0,0.5),
+              bA ~ dnorm(0,0.5),
+              sigma ~dexp(1),
+              ## A->M
+              M  ~ dnorm(mu_M, sigma_M),
+              mu_M <- aM+bAM*A,
+              aM  ~ dnorm(0,0.2),
+              bAM ~ dnorm(0,0.5),
+              sigma_M ~dexp(1)
+              ), data = d  
+        )
+#precis(m5.3_a)
+A_seq <- seq(from=-2, to=2, length.out=30)
+sim_dat <- data.frame(A=A_seq)
+s <- sim(m5.3_a, data=sim_dat, vars=c("M","D"))
+plot(sim_dat$A, colMeans(s$D), ylim=c(-2,2),type="l",xlab="Manipulated A",
+     ylab="Counterfactual D")
+shade(apply(s$D, 2,PI),sim_dat$A)
+mtext("Total Conterfactural effect of A on D")
+```
+
+```{r}
+sim2_dat <- data.frame(A=(c(20,30)-26.1)/1.24)
+s2 <- sim(m5.3_a, data=sim2_dat, vars=c("M","D"))
+mean(s2$D[,2]-s2$D[,1])
+```
+
+```{r}
+sim_dat <- data.frame(M=seq(from=-2,to=2, length.out=30),A=0)
+s <- sim(m5.3_a, data=sim_dat, vars="D")
+plot(sim_dat$M, colMeans(s), ylim=c(-2,2),type="l",xlab="Manipulated M",
+     ylab="Counterfactual D")
+shade(apply(s, 2,PI),sim_dat$M)
+mtext("Total Conterfactural effect of M on D")
+```
+
+# Exercises
+
+## Easy
+
+### 5E1. 
+
+Which of the linear models below are multiple linear regressions?
+
+(1) μi = α + βxi
+
+(2) μi = βxxi + βzzi
+
+(3) μi = α + β(xi − zi)
+
+(4) μi = α + βxxi + βzzi
+
+### 5E2. 
+
+Write down a multiple regression to evaluate the claim: Animal diversity is linearly related to latitude, but only after controlling for plant diversity. You just need to write down the model definition.
+
+### 5E3. 
+
+Write down a multiple regression to evaluate the claim: Neither amount of funding nor size of laboratory is by itself a good predictor of time to PhD degree; but together these variables are both positively associated with time to degree. Write down the model definition and indicate which side of zero each slope parameter should be on.
+
+### 5E4. 
+
+Suppose you have a single categorical predictor with 4 levels (unique values), labeled A, B, C and D. Let Ai be an indicator variable that is 1 where case i is in category A. Also suppose Bi, Ci, and Di for the other categories. Now which of the following linear models are inferentially equivalent ways to include the categorical variable in a regression? Models are inferentially equivalent when it’s possible to compute one posterior distribution from the posterior distribution of another model.
+
+(1) μi = α + βAAi + βBBi + βDDi
+
+(2) μi = α + βAAi + βBBi + βCCi + βDDi
+
+(3) μi = α + βBBi + βCCi + βDDi
+
+(4) μi = αAAi + αBBi + αCCi + αDDi
+
+(5) μi = αA(1 − Bi − Ci − Di) + αBBi + αCCi + αDDi
+
+## Medium
+
+### 5M1. 
+
+Invent your own example of a spurious correlation. An outcome variable should be correlated with both predictor variables. But when both predictors are entered in the same model, the correlation between the outcome and one of the predictors should mostly vanish (or at least be greatly reduced).
+
+### 5M2. 
+
+Invent your own example of a masked relationship. An outcome variable should be correlated with both predictor variables, but in opposite directions. And the two predictor variables should be correlated with one another.
+
+### 5M3. 
+
+It is sometimes observed that the best predictor of fire risk is the presence of firefighters— States and localities with many firefighters also have more fires. Presumably firefighters do not cause fires. Nevertheless, this is not a spurious correlation. Instead fires cause firefighters. Consider the same reversal of causal inference in the context of the divorce and marriage data. How might a high divorce rate cause a higher marriage rate? Can you think of a way to evaluate this relationship, using multiple regression?
+
+### 5M4. 
+
+In the divorce data, States with high numbers of members of the Church of Jesus Christ of Latter-day Saints (LDS) have much lower divorce rates than the regression models expected. Find a list of LDS population by State and use those numbers as a predictor variable, predicting divorce rate using marriage rate, median age at marriage, and percent LDS population (possibly standardized). You may want to consider transformations of the raw percent LDS variable.
+
+### 5M5. 
+
+One way to reason through multiple causation hypotheses is to imagine detailed mechanisms through which predictor variables may influence outcomes. For example, it is sometimes argued that the price of gasoline (predictor variable) is positively associated with lower obesity rates (outcome variable). However, there are at least two important mechanisms by which the price of gas could reduce obesity. First, it could lead to less driving and therefore more exercise. Second, it could lead to less driving, which leads to less eating out, which leads to less consumption of huge restaurant meals. Can you outline one or more multiple regressions that address these two mechanisms? Assume you can have any predictor data you need.
+
+## Hard
+
+### 5H1. 
+
+In the divorce example, suppose the DAG is: M → A → D. What are the implied conditional independencies of the graph? Are the data consistent with it?
+
+### 5H2. 
+
+Assuming that the DAG for the divorce example is indeed M → A → D, fit a new model and use it to estimate the counterfactual effect of halving a State’s marriage rate M. Use the counterfactual example from the chapter (starting on page 140) as a template.
+
+### 5H3. 
+
+Return to the milk energy model, m5.7. Suppose that the true causal relationship among the variables is:
+
+```{r}
+library(dagitty)
+dag5h3 <- dagitty("dag{M -> K; M -> N; N -> K }")
+coordinates(dag5h3) <- list(x=c(M=0, K=1, N=2),y=c(M=0, K=1, N=0))
+drawdag(dag5h3)
+```
+
+Now compute the counterfactual effect on K of doubling M. You will need to account for both the direct and indirect paths of causation. Use the counterfactual example from the chapter (starting on page 140) as a template.
+
+### 5H4. 
+
+Here is an open practice problem to engage your imagination. In the divorce date, States in the southern United States have many of the highest divorce rates. Add the South indicator variable to the analysis. First, draw one or more DAGs that represent your ideas for how Southern American culture might influence any of the other three variables (D, M or A). Then list the testable implications of your DAGs, if there are any, and fit one or more models to evaluate the implications. What do you think the influence of “Southerness” is ?
