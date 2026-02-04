@@ -172,11 +172,161 @@ shade(apply(s, 2,PI),sim_dat$M)
 mtext("Total Conterfactural effect of M on D")
 ```
 
+## 5.2. Masked Relationship
+
+```{r}
+library(rethinking)
+data(milk)
+d <- milk
+str(d)
+```
+
+```{r}
+d$K <- standardize(d$kcal.per.g)
+d$N <- standardize(d$neocortex.perc)
+d$M <- standardize(log(d$mass))
+```
+
+```{r}
+dcc <- d[complete.cases(d$K, d$N, d$M),]
+m5.5 <- quap(
+        alist(
+        K ~ dnorm(mu, sigma),
+        mu <- a +bN*N, 
+        a ~ dnorm(0,0.2),
+        bN ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+        ), data=dcc
+)
+prior <- extract.prior(m5.5)
+xseq <- c(-2,2)
+mu <- link(m5.5, post=prior,data = list(N=xseq))
+plot(NULL, xlim=xseq,ylim=xseq)
+for (i in 1:50) lines(xseq, mu[i,], col=col.alpha("black",0.6))
+```
+
+```{r}
+precis(m5.5)
+xseq <- seq(from=min(dcc$N)-0.15,to=max(dcc$N)+0.15,length.out=30)
+mu <- link(m5.5, data=list(N=xseq))
+mu_mean <- apply(mu,2,mean)
+mu_PI <- apply(mu,2,PI)
+plot(K ~N , data=dcc)
+lines(xseq, mu_mean, lwd=2)
+shade(mu_PI, xseq)
+```
+
+```{r}
+m5.6 <- quap(
+        alist(
+        K ~ dnorm(mu, sigma),
+        mu <- a +bM*M, 
+        a ~ dnorm(0,0.2),
+        bM ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+        ), data=dcc
+)
+precis(m5.6)
+```
+
+```{r}
+m5.7 <- quap(
+        alist(
+        K ~ dnorm(mu, sigma),
+        mu <- a +bM*M+bN*N, 
+        a ~ dnorm(0,0.2),
+        bN ~ dnorm(0,0.5),
+        bM ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+        ), data=dcc
+)
+precis(m5.7)
+plot(coeftab(m5.5,m5.6,m5.7), pars=c("bM","bN"))
+```
+
+```{r}
+xseq <- seq(from=min(dcc$N)-0.15,to=max(dcc$N)+0.15,length.out=30)
+mu <- link(m5.7, data=data.frame(M=xseq,N=0))
+mu_mean <- apply(mu,2,mean)
+mu_PI <- apply(mu,2,PI)
+plot(NULL, xlim=range(dcc$M),ylim=range(dcc$K))
+lines(xseq, mu_mean, lwd=2)
+shade(mu_PI, xseq)
+```
+
+## 5.3. Categorical variables
+
+### 5.3.1. Binary categories
+
+```{r}
+data("Howell1")
+d <- Howell1
+```
+
+```{r}
+mu_female <- rnorm(1e4, 178, 20)
+mu_male <- rnorm(1e4, 178,20)+rnorm(1e4,0,10)
+precis(data.frame(mu_female, mu_male))
+```
+
+```{r}
+d$sex <- d$male+1
+m5.8 <- quap(
+        alist(
+        height~dnorm(mu,sigma),
+        mu <- a[sex],
+        a[sex]~dnorm(178,20),
+        sigma ~dunif(0,50)
+),data=d)
+precis(m5.8, depth = 2)
+```
+
+```{r}
+post <- extract.samples(m5.8)
+post$diff_fm <- post$a[,1]-post$a[,2]
+precis(post,depth=2)
+```
+
+### 5.3.2. Many categories
+
+```{r}
+data(milk)
+d <- milk
+levels(d$clade)
+d$clade_id <- as.integer(d$clade)
+```
+
+```{r}
+d$K <- standardize(d$kcal.per.g)
+m5.9 <- quap(alist(
+        K ~dnorm(mu, sigma),
+        mu <- a[clade_id],
+        a[clade_id] <- dnorm(0,0.5),
+        sigma <- dexp(1)
+),data=d)
+labels <- paste("a[",1:4,"]:",levels(d$clade),sep="")
+plot(precis(m5.9, depth = 2,pars="a"),labels=labels)
+```
+
+```{r}
+set.seed(63)
+d$house <- sample(rep(1:4,each=8), size=nrow(d))
+m5.10 <- quap(alist(
+        K ~dnorm(mu, sigma),
+        mu <- a[clade_id] +h[house],
+        a[clade_id] ~ dnorm(0,0.5),
+        h[house] ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+),data=d)
+labels_h <- paste("h[",1:4,"]:",levels(d$house),sep="")
+plot(precis(m5.10, depth = 2,pars=c("a","h")),labels=c(labels,labels_h))
+```
+
 # Exercises
 
 ## Easy
 
-### 5E1. 
+### 5E1.
 
 Which of the linear models below are multiple linear regressions?
 
@@ -188,15 +338,15 @@ Which of the linear models below are multiple linear regressions?
 
 (4) μi = α + βxxi + βzzi
 
-### 5E2. 
+### 5E2.
 
 Write down a multiple regression to evaluate the claim: Animal diversity is linearly related to latitude, but only after controlling for plant diversity. You just need to write down the model definition.
 
-### 5E3. 
+### 5E3.
 
 Write down a multiple regression to evaluate the claim: Neither amount of funding nor size of laboratory is by itself a good predictor of time to PhD degree; but together these variables are both positively associated with time to degree. Write down the model definition and indicate which side of zero each slope parameter should be on.
 
-### 5E4. 
+### 5E4.
 
 Suppose you have a single categorical predictor with 4 levels (unique values), labeled A, B, C and D. Let Ai be an indicator variable that is 1 where case i is in category A. Also suppose Bi, Ci, and Di for the other categories. Now which of the following linear models are inferentially equivalent ways to include the categorical variable in a regression? Models are inferentially equivalent when it’s possible to compute one posterior distribution from the posterior distribution of another model.
 
@@ -212,37 +362,37 @@ Suppose you have a single categorical predictor with 4 levels (unique values), l
 
 ## Medium
 
-### 5M1. 
+### 5M1.
 
 Invent your own example of a spurious correlation. An outcome variable should be correlated with both predictor variables. But when both predictors are entered in the same model, the correlation between the outcome and one of the predictors should mostly vanish (or at least be greatly reduced).
 
-### 5M2. 
+### 5M2.
 
 Invent your own example of a masked relationship. An outcome variable should be correlated with both predictor variables, but in opposite directions. And the two predictor variables should be correlated with one another.
 
-### 5M3. 
+### 5M3.
 
 It is sometimes observed that the best predictor of fire risk is the presence of firefighters— States and localities with many firefighters also have more fires. Presumably firefighters do not cause fires. Nevertheless, this is not a spurious correlation. Instead fires cause firefighters. Consider the same reversal of causal inference in the context of the divorce and marriage data. How might a high divorce rate cause a higher marriage rate? Can you think of a way to evaluate this relationship, using multiple regression?
 
-### 5M4. 
+### 5M4.
 
 In the divorce data, States with high numbers of members of the Church of Jesus Christ of Latter-day Saints (LDS) have much lower divorce rates than the regression models expected. Find a list of LDS population by State and use those numbers as a predictor variable, predicting divorce rate using marriage rate, median age at marriage, and percent LDS population (possibly standardized). You may want to consider transformations of the raw percent LDS variable.
 
-### 5M5. 
+### 5M5.
 
 One way to reason through multiple causation hypotheses is to imagine detailed mechanisms through which predictor variables may influence outcomes. For example, it is sometimes argued that the price of gasoline (predictor variable) is positively associated with lower obesity rates (outcome variable). However, there are at least two important mechanisms by which the price of gas could reduce obesity. First, it could lead to less driving and therefore more exercise. Second, it could lead to less driving, which leads to less eating out, which leads to less consumption of huge restaurant meals. Can you outline one or more multiple regressions that address these two mechanisms? Assume you can have any predictor data you need.
 
 ## Hard
 
-### 5H1. 
+### 5H1.
 
 In the divorce example, suppose the DAG is: M → A → D. What are the implied conditional independencies of the graph? Are the data consistent with it?
 
-### 5H2. 
+### 5H2.
 
 Assuming that the DAG for the divorce example is indeed M → A → D, fit a new model and use it to estimate the counterfactual effect of halving a State’s marriage rate M. Use the counterfactual example from the chapter (starting on page 140) as a template.
 
-### 5H3. 
+### 5H3.
 
 Return to the milk energy model, m5.7. Suppose that the true causal relationship among the variables is:
 
@@ -255,6 +405,6 @@ drawdag(dag5h3)
 
 Now compute the counterfactual effect on K of doubling M. You will need to account for both the direct and indirect paths of causation. Use the counterfactual example from the chapter (starting on page 140) as a template.
 
-### 5H4. 
+### 5H4.
 
 Here is an open practice problem to engage your imagination. In the divorce date, States in the southern United States have many of the highest divorce rates. Add the South indicator variable to the analysis. First, draw one or more DAGs that represent your ideas for how Southern American culture might influence any of the other three variables (D, M or A). Then list the testable implications of your DAGs, if there are any, and fit one or more models to evaluate the implications. What do you think the influence of “Southerness” is ?
