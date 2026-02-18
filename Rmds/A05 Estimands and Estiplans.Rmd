@@ -348,60 +348,197 @@ Write down a multiple regression to evaluate the claim: Animal diversity is line
 
 ```         
 L->PD->AD
-mu_l = α + β_pd*PD = α + β_pd*β_ad*AD
+A ~ Normal (mu, sigma)
+mu_i = α + β_pd*PD + α + β_l*L
 ```
 
-### 5E3.
+### 5E3. v
 
 Write down a multiple regression to evaluate the claim: Neither amount of funding nor size of laboratory is by itself a good predictor of time to PhD degree; but together these variables are both positively associated with time to degree. Write down the model definition and indicate which side of zero each slope parameter should be on.
 
-### 5E4.
+```         
+T ~ Normal (mu, sigma)
+mu = α + β_f*F+β_s*S)
+```
+
+### 5E4. v
 
 Suppose you have a single categorical predictor with 4 levels (unique values), labeled A, B, C and D. Let Ai be an indicator variable that is 1 where case i is in category A. Also suppose Bi, Ci, and Di for the other categories. Now which of the following linear models are inferentially equivalent ways to include the categorical variable in a regression? Models are inferentially equivalent when it’s possible to compute one posterior distribution from the posterior distribution of another model.
 
-(1) μi = α + βAAi + βBBi + βDDi
+(1) μi = α + βA\*Ai + βB\*Bi + βD\*Di
 
-(2) μi = α + βAAi + βBBi + βCCi + βDDi
+(2) μi = α + βA\*Ai + βB\*Bi + βC\*Ci + βD\*Di
 
-(3) μi = α + βBBi + βCCi + βDDi
+(3) μi = α + βB\*Bi + βC\*Ci + βD\*Di
 
-(4) μi = αAAi + αBBi + αCCi + αDDi
+(4) μi = αA\*Ai + αB\*Bi + αC\*Ci + αD\*Di
 
-(5) μi = αA(1 − Bi − Ci − Di) + αBBi + αCCi + αDDi
+(5) μi = αA\*(1 − Bi − Ci − Di) + αB\*Bi + αC\*Ci + αD\*Di
+
+```         
+2 is different than the rest. The rest have an intercept and 3 slopes or 4 slopes while 2 has an intercept and 4 slopes
+```
 
 ## Medium
 
-### 5M1.
+### 5M1. v
 
 Invent your own example of a spurious correlation. An outcome variable should be correlated with both predictor variables. But when both predictors are entered in the same model, the correlation between the outcome and one of the predictors should mostly vanish (or at least be greatly reduced).
 
-### 5M2.
+```{r}
+library(tidyverse)
+sigma <- rexp(1, 1)
+alpha <- rnorm(1,0,1)
+b_x1 <- rnorm(1,10,0.3)
+b_x2 <- rnorm(1, -2, 0.3)
+x1 <- seq(from=0,to=5,length.out=30)
+x2 <- seq(from=10,to=0,length.out=30)
+df <- data.frame(
+        x1=x1,x2=x2, sigma=sigma
+        ) |> 
+        mutate(mu=alpha*b_x1*x1+b_x2*x2)
+df$y <- apply(df, 1, function(x) rnorm(1, mean=x[3], sd=x[4]))
+df |> 
+        pivot_longer(cols=c(x1,x2)) |> 
+        ggplot(aes(x=value, y=y))+
+        geom_point()+facet_wrap(~name)
+
+
+```
+
+### 5M2. v
 
 Invent your own example of a masked relationship. An outcome variable should be correlated with both predictor variables, but in opposite directions. And the two predictor variables should be correlated with one another.
 
-### 5M3.
+```         
+y=a1+b_x1*x1+b_x2*x2 
+b_x1 = 1
+b_x2 = -1
+x1 = a2 +b2_x2*x2
+b2_x2 = 1
+```
+
+### 5M3. v
 
 It is sometimes observed that the best predictor of fire risk is the presence of firefighters— States and localities with many firefighters also have more fires. Presumably firefighters do not cause fires. Nevertheless, this is not a spurious correlation. Instead fires cause firefighters. Consider the same reversal of causal inference in the context of the divorce and marriage data. How might a high divorce rate cause a higher marriage rate? Can you think of a way to evaluate this relationship, using multiple regression?
 
-### 5M4.
+```         
+a high divorce will allow for people people to marry several times so while I'm expecting a correlation between marriage rate and divorce rate, I'm expecting that correlation to dissapear when we control for median age of marriage
+```
+
+```{r}
+data("WaffleDivorce")
+d <- WaffleDivorce
+d$M <- standardize(d$Marriage)
+d$D <- standardize(d$Divorce)
+d$A <- standardize(d$MedianAgeMarriage)
+m5m3a <- quap(alist(
+        D ~  dnorm(mu, sigma),
+        mu <-  a+bM*M,
+        a ~ dnorm(0,0.2),
+        bM ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+),data=d)
+m5m3b <- quap(alist(
+        D~dnorm(mu, sigma),
+        mu <-  a+bM*M+bA*A,
+        a ~ dnorm(0,0.5),
+        bM ~ dnorm(0,0.5),
+        bA ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+),data=d)
+plot(coeftab(m5m3a,m5m3b), pars=c("bA","bM"))
+```
+
+### 5M4. v
 
 In the divorce data, States with high numbers of members of the Church of Jesus Christ of Latter-day Saints (LDS) have much lower divorce rates than the regression models expected. Find a list of LDS population by State and use those numbers as a predictor variable, predicting divorce rate using marriage rate, median age at marriage, and percent LDS population (possibly standardized). You may want to consider transformations of the raw percent LDS variable.
+
+```{r}
+data("WaffleDivorce")
+d <- WaffleDivorce
+d$pct_LDS <- c(0.75, 4.53, 6.18, 1, 2.01, 2.82, 0.43, 0.55, 0.38,
+0.75, 0.82, 5.18, 26.35, 0.44, 0.66, 0.87, 1.25, 0.77, 0.64, 0.81,
+0.72, 0.39, 0.44, 0.58, 0.72, 1.14, 4.78, 1.29, 0.61, 0.37, 3.34,
+0.41, 0.82, 1.48, 0.52, 1.2, 3.85, 0.4, 0.37, 0.83, 1.27, 0.75,
+1.21, 67.97, 0.74, 1.13, 3.99, 0.92, 0.44, 11.5 )
+d$L <- standardize( d$pct_LDS )
+d$A <- standardize( d$MedianAgeMarriage )
+d$M <- standardize( d$Marriage )
+d$D <- standardize( d$Divorce )
+
+m_5M4 <- quap(
+        alist(
+                D ~ dnorm(mu,sigma),
+                mu <- a + bM*M + bA*A + bL*L,
+                a ~ dnorm(0,0.2),
+                c(bA,bM,bL) ~ dnorm(0,0.5),
+                sigma ~ dexp(1)
+                ), data=d )
+precis( m_5M4 )
+```
 
 ### 5M5.
 
 One way to reason through multiple causation hypotheses is to imagine detailed mechanisms through which predictor variables may influence outcomes. For example, it is sometimes argued that the price of gasoline (predictor variable) is positively associated with lower obesity rates (outcome variable). However, there are at least two important mechanisms by which the price of gas could reduce obesity. First, it could lead to less driving and therefore more exercise. Second, it could lead to less driving, which leads to less eating out, which leads to less consumption of huge restaurant meals. Can you outline one or more multiple regressions that address these two mechanisms? Assume you can have any predictor data you need.
 
+```         
+```
+
 ## Hard
 
-### 5H1.
+### 5H1. v
 
 In the divorce example, suppose the DAG is: M → A → D. What are the implied conditional independencies of the graph? Are the data consistent with it?
 
-### 5H2.
+```{r}
+library(dagitty)
+dag_5H1 <- dagitty("dag{M->A->D}")
+impliedConditionalIndependencies(dag_5H1)
+```
+
+```{r}
+m_5h1 <- quap(
+        alist(
+                D ~ dnorm(mu,sigma),
+                mu <- a + bM*M + bA*A,
+                a ~ dnorm(0,0.2),
+                bM ~ dnorm(0,0.5),
+                bA ~ dnorm(0,0.5),
+                sigma ~ dexp(1)
+                ), data=d )
+precis( m_5h1 )
+```
+
+### 5H2. v
 
 Assuming that the DAG for the divorce example is indeed M → A → D, fit a new model and use it to estimate the counterfactual effect of halving a State’s marriage rate M. Use the counterfactual example from the chapter (starting on page 140) as a template.
 
-### 5H3.
+```{r}
+
+m_5h2 <- quap(
+        alist(
+                D ~ dnorm(mu_D,sigma),
+                mu_D <- aD +  bA*A,
+                A ~ dnorm(mu_A, sigma),
+                mu_A <- aA + bM*M,
+                c(aD,aA) ~ dnorm(0,0.2),
+                bM ~ dnorm(0,0.5),
+                bA ~ dnorm(0,0.5),
+                sigma ~ dexp(1)
+                ), data=d )
+precis( m_5h2 )
+```
+
+```{r}
+mean_M <- mean(d$Marriage)
+sd_M <- sd(d$Marriage)
+sim2_dat <- data.frame( M=(c(20.2,10.1)-mean_M)/sd_M )
+s2 <- sim( m_5h2 , data=sim2_dat , vars=c("A","D") )
+mean( s2$D[,2] - s2$D[,1] )
+```
+
+### 5H3. v
 
 Return to the milk energy model, m5.7. Suppose that the true causal relationship among the variables is:
 
@@ -414,10 +551,68 @@ drawdag(dag5h3)
 
 Now compute the counterfactual effect on K of doubling M. You will need to account for both the direct and indirect paths of causation. Use the counterfactual example from the chapter (starting on page 140) as a template.
 
+```{r}
+m_5h3 <- quap(
+        alist(
+        K ~ dnorm(mu, sigma),
+        mu <- a +bM*M+bN*N, 
+        N ~ dnorm(mu_N, sigma),
+        mu_N <- aN + bMN*M,
+        a ~ dnorm(0,0.2),
+        aN ~ dnorm(0,0.2),
+        bN ~ dnorm(0,0.5),
+        bM ~ dnorm(0,0.5),
+        bMN ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+        ), data=dcc
+)
+mean_M <- mean(dcc$mass)
+sd_M <- sd(dcc$mass)
+sim2_dat_n <- data.frame( M=(dcc$mass-mean_M)/sd_M )
+sim2_dat_d <- data.frame( M=(2*dcc$mass-mean_M)/sd_M )
+s2_n <- sim( m_5h3 , data=sim2_dat_n , vars=c("K","N") )
+s2_d <- sim( m_5h3 , data=sim2_dat_d , vars=c("K","N") )
+
+data.frame(n=s2_n$K,d=s2_d$K) |> 
+        ggplot(aes(x=n,y=d))+geom_point()
+```
+
 ### 5H4.
 
 Here is an open practice problem to engage your imagination. In the divorce date, States in the southern United States have many of the highest divorce rates. Add the South indicator variable to the analysis. First, draw one or more DAGs that represent your ideas for how Southern American culture might influence any of the other three variables (D, M or A). Then list the testable implications of your DAGs, if there are any, and fit one or more models to evaluate the implications. What do you think the influence of “Southerness” is ?
 
-## Extra
+## Extra. v
 
 Lectures A04 and A05 focus on estimating total and direct effects of sex on weight in adults from the Howell1 data. Now I want you to focus on the portion of the sample that is 13 years old and younger. Repeat the analysis, estimating both the total effect of sex on weight and the direct effect. What if anything is different about this subsample, compared to adults?
+
+```{r}
+library(rethinking)
+data("Howell1")
+d <- Howell1[Howell1$age<14,]
+d$H <- d$height
+d$W <- d$weight
+d$sex <- d$male+1
+```
+
+```{r}
+m_a05_x <- quap(alist(
+        # H <- f(W,age,sex)
+        W ~ dnorm(mu, sigma),
+        mu <-   bH[sex]*H ,
+        #a[sex] ~ dnorm(0.5, 0.5),
+        bH[sex] ~ dnorm(0.5, 0.2),
+        sigma ~ dexp(1),
+        # W <- f(age, sex)
+        H ~ dnorm(mu_H, sigma_H),
+        mu_H <- a_H[sex]+  bHA[sex]*age,
+        a_H[sex] ~ dnorm(60, 5),
+        bHA[sex] ~ dnorm(0.5, 0.2),
+        sigma_H ~ dexp(1)
+), data=d)
+
+#plot(coeftab(,, depth = 2,pars=c("bH","bA","bHA")))
+
+plot(precis(m_a05_x, depth = 2))
+# Seems like most of the influence of height in weigth it's caused by age. Any of the models where age is controled, bH is very close to zero. sigma_H is bigger than what i would expect. It seems there's a significant difference between birth height in girls and boys but not in height increase per year
+
+```
