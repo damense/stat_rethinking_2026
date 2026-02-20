@@ -88,11 +88,11 @@ There is a set of recorded lectures from 2023 that might also be of use, either 
 | 06 | 10 February | Beginner | <[Elemental Confounds I](https://www.youtube.com/watch?v=lGR7D45Ww38)> | Chapter 6
 |    | 13 February | Experienced | <[Gaussian Processes](https://www.youtube.com/watch?v=MtXg7fxQgeA)> | Chapter 15 
 | 07 | 17 February | Beginner | <[Good and Bad Controls](https://www.youtube.com/watch?v=sTieMzOcreQ)> | Chapter 6
-|    | 20 February | Experienced | Measurement Error | Chapter 15 
+|    | 20 February | Experienced | <[Measurement Models](https://www.youtube.com/watch?v=IkWcbiwymi4)> | Chapter 15 
 | 08 | 24 February | Beginner | Markov chain Monte Carlo | Chapters 9 & 10
-|    | 27 February | Experienced | Missing Data | Chapter 16 
+|    | 27 February | Experienced | Missing Data | Chapter 15 
 | 09 | 3 March | Beginner | Modeling Events | Chapters 10 & 11
-|    | 6 March | Experienced | Generalized Linear Madness | 
+|    | 6 March | Experienced | Generalized Linear Madness | Chapter 16
 | 10 | 10 March | Beginner | Multilevel Models | Chapter 12 
 |    | 20 March | Experienced | Special Topic - Students' Choice! | 
 
