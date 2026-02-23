@@ -1,0 +1,391 @@
+---
+title: "A06 & 7 Elemental confounds"
+author: "David Mendez"
+date: "2026-02-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Book
+
+## 6.1. Multicollinearity
+
+### 6.1.1 Multicollinear legs
+
+```{r}
+library(rethinking)
+n <- 100
+set.seed(3101)
+height <- rnorm(n,10,2)
+leg_prop <- runif(n,0.4,0.5)
+leg_left <- leg_prop*height+rnorm(n,0,0.02)
+leg_right <- leg_prop*height+rnorm(n,0,0.02)
+d <- data.frame(height, leg_left, leg_right)
+m6.1 <- quap(
+        alist(
+                height~dnorm(mu,sigma),
+                mu <- a + bl*leg_left + br*leg_right,
+                a~dnorm(10, 100),
+                bl ~ dnorm(2,10),
+                br ~ dnorm(2,10),
+                sigma ~dexp(1)
+        ), data=d
+)
+precis(m6.1)
+```
+
+```{r}
+post <- extract.samples(m6.1)
+plot(bl ~br, post, col=col.alpha(rangi2, 0.1), pch=16)
+```
+
+```{r}
+sum_blbr <- post$bl+post$br
+dens(sum_blbr, col=rangi2, lwd=2)
+```
+
+```{r}
+m6.2 <- quap(
+        alist(
+                height~dnorm(mu,sigma),
+                mu <- a + bl*leg_left,
+                a~dnorm(10, 100),
+                bl ~ dnorm(2,10),
+                sigma ~dexp(1)
+        ), data=d
+)
+precis(m6.2)
+```
+
+### 6.1.2. Multicollinear milk
+
+```{r}
+data(milk)
+d <- milk
+d$K <-  standardize(d$kcal.per.g)
+d$F <-  standardize(d$perc.fat)
+d$L <-  standardize(d$perc.lactose)
+```
+
+```{r}
+m6.3 <- quap(
+        alist(
+                K ~ dnorm(mu,sigma),
+                mu <- a + bF*F,
+                a ~ dnorm(0, 0.2),
+                bF ~ dnorm(0,0.5),
+                sigma ~dexp(1)
+        ), data=d
+)
+m6.4 <- quap(
+        alist(
+                K ~ dnorm(mu,sigma),
+                mu <- a + bL*L,
+                a ~ dnorm(0, 0.2),
+                bL ~ dnorm(0,0.5),
+                sigma ~dexp(1)
+        ), data=d
+)
+precis(m6.3)
+precis(m6.4)
+```
+
+```{r}
+m6.5 <- quap(
+        alist(
+                K ~ dnorm(mu,sigma),
+                mu <- a + bF*F + bL*L,
+                a ~ dnorm(0, 0.2),
+                bF ~ dnorm(0,0.5),
+                bL ~ dnorm(0,0.5),
+                sigma ~dexp(1)
+        ), data=d
+)
+precis(m6.5)
+```
+
+```{r}
+pairs( ~ kcal.per.g + perc.fat +perc.lactose, data=d, col=rangi2)
+```
+
+## 6.2 Post-treatment bias
+
+```{r}
+n <- 100
+h0 <- rnorm(n,10,2)
+treatment <- rep(0:1, each=n/2)
+fungus <-  rbinom(n, size=1, prob=0.5 - treatment*0.4)
+h1 <- h0 + rnorm(n, 5-3*fungus)
+d <- data.frame(h0, h1, treatment, fungus)
+precis(d)
+```
+
+### 6.2.1 A prior is born
+
+```{r}
+m6.6 <- quap(alist(
+        h1 ~ dnorm(mu, sigma),
+        mu <- h0*p,
+        p ~ dlnorm(0,0.25),
+        sigma ~ dexp(1)
+),data=d)
+precis(m6.6)
+```
+
+```{r}
+m6.7 <- quap(alist(
+        h1 ~ dnorm(mu, sigma),
+        mu <- h0*p,
+        p <- a + bt*treatment + bf*fungus,
+        a ~ dlnorm(0,0.2),
+        bt ~ dnorm(0,0.5),
+        bf ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+),data=d)
+precis(m6.7)
+```
+
+### 6.2.2. Blocked by consequence
+
+```{r}
+m6.8 <- quap(alist(
+        h1 ~ dnorm(mu, sigma),
+        mu <- h0*p,
+        p <- a + bt*treatment ,
+        a ~ dlnorm(0,0.2),
+        bt ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+),data=d)
+precis(m6.8)
+```
+
+### 6.2.3. Fungus and d-separation
+
+```{r}
+library(dagitty)
+plant_dag <- dagitty("dag{
+                     H_0 -> H_1
+                     F -> H_1
+                     T -> F
+}")
+coordinates(plant_dag) <- list(x=c(H_0=0, T=2, F=1.5, H_1=1),
+                               y=c(H_0=0, T=0, F=0, H_1=0))
+drawdag(plant_dag)
+```
+
+```{r}
+impliedConditionalIndependencies(plant_dag)
+```
+
+```{r}
+set.seed(3101)
+n <- 1000
+h0 <-  rnorm(n, 10,2)
+treatment <-  rep(0:1, each=n/2)
+M <- rbern(n)
+fungus <-  rbinom(n, size=1, prob=0.5-treatment*0.4+0.4*M)
+h1 <- h0 + rnorm(n, 5+3*M)
+d2 <- data.frame(h0, h1, treatment, fungus)
+```
+
+```{r}
+m6.7 <- quap(alist(
+        h1 ~ dnorm(mu, sigma),
+        mu <- h0*p,
+        p <- a + bt*treatment + bf*fungus,
+        a ~ dlnorm(0,0.2),
+        bt ~ dnorm(0,0.5),
+        bf ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+),data=d)
+m6.8 <- quap(alist(
+        h1 ~ dnorm(mu, sigma),
+        mu <- h0*p,
+        p <- a + bt*treatment ,
+        a ~ dlnorm(0,0.2),
+        bt ~ dnorm(0,0.5),
+        sigma ~ dexp(1)
+),data=d)
+precis(m6.7)
+precis(m6.8)
+```
+
+## 6.3. Collider bias
+
+### 6.3.1. Collider of false sorrow
+
+```{r}
+d <- sim_happiness(seed=1977, N_years = 1000)
+precis(d)
+```
+
+```{r}
+d2 <- d[d$age>17,]
+d2$A <- (d2$age -18)/(65-18)
+d2$mid <- d2$married+1
+m6.9 <- quap(alist(
+        happiness ~ dnorm(mu, sigma),
+        mu <- a[mid] + bA*A,
+        a[mid] ~ dnorm(0,1),
+        bA ~ dnorm(0,2),
+        sigma ~ dexp(1)
+),data=d2)
+precis(m6.9, depth = 2)
+```
+
+```{r}
+m6.10 <- quap(alist(
+        happiness ~ dnorm(mu, sigma),
+        mu <- a + bA*A,
+        a~ dnorm(0,1),
+        bA ~ dnorm(0,2),
+        sigma ~ dexp(1)
+),data=d2)
+precis(m6.10)
+```
+
+### 6.3.2. The haunted DAG
+
+```{r}
+n <- 200
+b_GP <- 1
+b_PC <- 1
+b_GC <- 0
+b_U <- 2
+set.seed(1)
+U <- 2*rbern(n, 0.5)-1
+G <- rnorm(n)
+P <- rnorm(n, b_GP*G +b_U*U)
+C <- rnorm(n, b_PC*P+ b_GC*G+b_U*U)
+d <- data.frame(C,P,G,U)
+```
+
+```{r}
+m6.11 <- quap(alist(
+        C ~ dnorm(mu, sigma),
+        mu <- a + b_PC*P + b_GC*G,
+        a ~ dnorm(0,1),
+        c(b_PC,b_GC) ~ dnorm(0,1),
+        sigma ~ dexp(1)
+), data=d)
+precis(m6.11)
+```
+
+```{r}
+m6.12 <- quap(alist(
+        C ~ dnorm(mu, sigma),
+        mu <- a + b_PC*P + b_GC*G + b_U*U,
+        a ~ dnorm(0,1),
+        c(b_PC,b_GC,b_U) ~ dnorm(0,1),
+        sigma ~ dexp(1)
+), data=d)
+precis(m6.12)
+```
+
+## 6.4. Confronting confounding
+
+```{r}
+dag_6.1 <- dagitty("dag{
+                   U [unobserved]
+                   X -> Y
+                   X <- U <- A -> C -> Y
+                   U -> B <- C
+}")
+adjustmentSets(dag_6.1, exposure = "X", outcome = "Y")
+```
+
+```{r}
+dag_6.2 <- dagitty("dag{
+                   A -> D
+                   A -> M -> D
+                   A <- S -> M
+                   S -> W -> D
+}")
+adjustmentSets(dag_6.2, exposure = "W", outcome = "D")
+
+```
+
+```{r}
+impliedConditionalIndependencies(dag_6.2)
+```
+
+# Practice
+
+## Easy
+
+### 6E1.
+
+List three mechanisms by which multiple regression can produce false inferences about causal effects.
+
+### 6E2.
+
+For one of the mechanisms in the previous problem, provide an example of your choice, perhaps from your own research.
+
+### 6E3.
+
+List the four elemental confounds. Can you explain the conditional dependencies of each?
+
+### 6E4.
+
+How is a biased sample like conditioning on a collider? Think of the example at the open of the chapter.
+
+## Medium
+
+### 6M1.
+
+Modify the DAG on page 186 to include the variable V, an unobserved cause of C and Y: C ← V → Y. Reanalyze the DAG. How many paths connect X to Y? Which must be closed? Which variables should you condition on now?
+
+### 6M2.
+
+Sometimes, in order to avoid multicollinearity, people inspect pairwise correlations among predictors before including them in a model. This is a bad procedure, because what matters is the conditional association, not the association before the variables are included in the model. To high- light this, consider the DAG X → Z → Y. Simulate data from this DAG so that the correlation between X and Z is very large. Then include both in a model prediction Y. Do you observe any multicollinearity? Why or why not? What is different from the legs example in the chapter?
+
+### 6M3.
+
+Learning to analyze DAGs requires practice. For each of the four DAGs below, state which variables, if any, you must adjust for (condition on) to estimate the total causal influence of X on Y.
+
+## Hard
+
+### 6H1.
+
+Use the Waffle House data, data(WaffleDivorce), to find the total causal influence of num- ber of Waffle Houses on divorce rate. Justify your model or models with a causal graph. 190 6. THE HAUNTED DAG & THE CAUSAL TERROR
+
+### 6H2.
+
+Build a series of models to test the implied conditional independencies of the causal graph you used in the previous problem. If any of the tests fail, how do you think the graph needs to be amended? Does the graph need more or fewer arrows? Feel free to nominate variables that aren’t in the data. All three problems below are based on the same data. The data in data(foxes) are 116 foxes from 30 different urban groups in England. These foxes are like street gangs. Group size varies from 2 to 8 individuals. Each group maintains its own urban territory. Some territories are larger than others. The area variable encodes this information. Some territories also have more avgfood than others. We want to model the weight of each fox. For the problems below, assume the following DAG:
+
+area-\> avgfood-\> groupsize -\> weight
+
+avgfood -\> weight
+
+### 6H3.
+
+Use a model to infer the total causal influence of area on weight. Would increasing the area available to each fox make it heavier (healthier)? You might want to standardize the variables. Re- gardless, use prior predictive simulation to show that your model’s prior predictions stay within the possible outcome range.
+
+### 6H4.
+
+Now infer the causal impact of adding food to a territory. Would this make foxes heavier? Which covariates do you need to adjust for to estimate the total causal influence of food?
+
+### 6H5.
+
+Now infer the causal impact of group size. Which covariates do you need to adjust for? Looking at the posterior distribution of the resulting model, what do you think explains these data? That is, can you explain the estimates for all three problems? How do they go together?
+
+### 6H6.
+
+Consider your own research question. Draw a DAG to represent it. What are the testable implications of your DAG? Are there any variables you could condition on to close all backdoor paths? Are there unobserved variables that you have omitted? Would a reasonable colleague imagine additional threats to causal inference that you have ignored?
+
+### 6H7.
+
+For the DAG you made in the previous problem, can you write a data generating simulation for it? Can you design one or more statistical models to produce causal estimates? If so, try to calculate interesting counterfactuals. If not, use the simulation to estimate the size of the bias you might expect. Under what conditions would you, for example, infer the opposite of a true causal effect
+
+## Extra
+
+This homework is based on the data in data(foxes): 116 foxes from 30 different urban groups in England. These fox groups are like street gangs. We consider four variables. Each group maintains its own (almost exclusive) urban territory. Some territories are larger than others. The area variable is the size of each territory. Group size (groupsize) varies from 2 to 8 individuals and is the number of foxes in each territory. Some territories also have more avgfood than others. And finally food influences the weight of each fox. Assume this DAG:
+
+A-\>F -\> W
+
+F -\>G-\>W
+
+where F is avgfood, G is groupsize, A is area, and W is weight. Use the backdoor criterion and estimate the total causal influence of F on W. What is the minimal adjustment set? What effect would increasing the food have on the weight of foxes inside it? Can you explain the result?
