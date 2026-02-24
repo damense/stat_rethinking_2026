@@ -316,17 +316,35 @@ impliedConditionalIndependencies(dag_6.2)
 
 ## Easy
 
-### 6E1.
+### 6E1. v
 
 List three mechanisms by which multiple regression can produce false inferences about causal effects.
 
-### 6E2.
+`Confounding, collinearity, conditioning on post treatment bias and colider bias`
+
+### 6E2. v
 
 For one of the mechanisms in the previous problem, provide an example of your choice, perhaps from your own research.
 
-### 6E3.
+-   `Confounding: Temperature of the reactor affects cell density on day 1 and day 2 and cell density on day 1 affects cell density on day 2. Temperature is a confounder`
+
+-   `Collinearity: Live cell density and total cell density of day 1 affect live cell density of day 2. Live and total cell density are collinear because the viability tends to be constant.`
+
+-   `Conditioning on post treatment bias: Cell density on day 3 is heavily linked to cell density on day 2 but it's a post treatment variable so it shouldn't be used for modeling cell density on day 2.`
+
+-   `Colider bias: Viability is a result of live divided by total cell density. If we control for viability live and total cell densities are colinear`
+
+### 6E3. v
 
 List the four elemental confounds. Can you explain the conditional dependencies of each?
+
+-   `Fork: B <- A -> C`
+
+-   `Pipe: A -> B -> C`
+
+-   `Colider: A -> B <- C`
+
+-   `Descendant: A -> B -> C and D-> B`
 
 ### 6E4.
 
@@ -334,23 +352,75 @@ How is a biased sample like conditioning on a collider? Think of the example at 
 
 ## Medium
 
-### 6M1.
+### 6M1. v
 
 Modify the DAG on page 186 to include the variable V, an unobserved cause of C and Y: C ← V → Y. Reanalyze the DAG. How many paths connect X to Y? Which must be closed? Which variables should you condition on now?
 
-### 6M2.
+```{r}
+library(dagitty)
+plant_dag <- dagitty("dag{
+                     A -> U -> B <- C -> Y <- V
+                     U -> X -> Y
+                     A -> C <- V
+}")
+coordinates(plant_dag) <- list(x=c(U=0, X=0,A=1, B=1,C=2,Y=2, V=2.5),
+                               y=c(U=-1, X=0,A=-1.5, B=-0.5,C=-1,Y=0,V=-0.5))
+drawdag(plant_dag)
+adjustmentSets(plant_dag, exposure = "X",outcome = "Y")
+```
 
-Sometimes, in order to avoid multicollinearity, people inspect pairwise correlations among predictors before including them in a model. This is a bad procedure, because what matters is the conditional association, not the association before the variables are included in the model. To high- light this, consider the DAG X → Z → Y. Simulate data from this DAG so that the correlation between X and Z is very large. Then include both in a model prediction Y. Do you observe any multicollinearity? Why or why not? What is different from the legs example in the chapter?
+### 6M2. v
 
-### 6M3.
+Sometimes, in order to avoid multicollinearity, people inspect pairwise correlations among predictors before including them in a model. This is a bad procedure, because what matters is the conditional association, not the association before the variables are included in the model. To highlight this, consider the DAG X → Z → Y. Simulate data from this DAG so that the correlation between X and Z is very large. Then include both in a model prediction Y. Do you observe any multicollinearity? Why or why not? What is different from the legs example in the chapter?
+
+```{r}
+n <- 200
+set.seed(3103)
+x <- rnorm(n)
+z <- x* rnorm(n, 2,0.01)
+y <- z*rnorm(n,3, 0.5)
+d <- data.frame(x,y,z)
+m_6m2 <- quap(alist(
+        y ~ dnorm(mu,sigma),
+        mu <- a1 + b1*z,
+        z <- a2 +b2*x,
+        c(a1, a2) ~ dnorm(0, 0.5),
+        c(b1, b2) ~ dnorm(2,5),
+        sigma ~ dexp(1)
+),data=d)
+precis(m_6m2)
+```
+
+`In this example, since I know the DAG I wouldn't have my model be a+b1x +b2z, but two models for each of the relations.`
+
+### 6M3. v
 
 Learning to analyze DAGs requires practice. For each of the four DAGs below, state which variables, if any, you must adjust for (condition on) to estimate the total causal influence of X on Y.
+
+```{r}
+sixm3_dag <- dagitty("dag{
+                     X <- A -> Z <- X -> Y
+                     Z <- Y
+}")
+coordinates(sixm3_dag) <- list(x=c(A=2,Z=1,X=0,Y=2),
+                               y=c(A=-1,Z=-1,X=0,Y=0))
+
+adjustmentSets(sixm3_dag, exposure = "X",outcome = "Y")
+```
+
+-   z
+
+-   nothing
+
+-   nothing
+
+-   A
 
 ## Hard
 
 ### 6H1.
 
-Use the Waffle House data, data(WaffleDivorce), to find the total causal influence of num- ber of Waffle Houses on divorce rate. Justify your model or models with a causal graph. 190 6. THE HAUNTED DAG & THE CAUSAL TERROR
+Use the Waffle House data, data(WaffleDivorce), to find the total causal influence of number of Waffle Houses on divorce rate. Justify your model or models with a causal graph.
 
 ### 6H2.
 
