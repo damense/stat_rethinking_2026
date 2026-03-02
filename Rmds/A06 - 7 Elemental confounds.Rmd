@@ -418,9 +418,39 @@ adjustmentSets(sixm3_dag, exposure = "X",outcome = "Y")
 
 ## Hard
 
-### 6H1.
+### 6H1. v
 
 Use the Waffle House data, data(WaffleDivorce), to find the total causal influence of number of Waffle Houses on divorce rate. Justify your model or models with a causal graph.
+
+```{r}
+library(rethinking)
+library(dagitty)
+data("WaffleDivorce")
+d <- WaffleDivorce
+d$D <- standardize(d$Divorce)
+d$W <- standardize(d$WaffleHouses)
+d$P <- standardize(d$Population)
+d$M <- standardize(d$Marriage)
+
+sixh1_dag <- dagitty("dag{
+                     W <- P -> M -> D
+                     D <- S -> W -> D
+                     S -> M
+}")
+adjustmentSets(sixh1_dag, exposure = "W",outcome = "D")
+```
+
+```{r}
+m6h1 <- quap(alist(
+        D ~ dnorm(mu, sigma),
+        mu <- a + bs*South + bm*M,
+        M <- a + bs*South + bp*P,
+        c(a, bs, bm, bp) ~ dnorm(0,1),
+        sigma ~ dexp(1)
+),data=d)
+
+precis(m6h1)
+```
 
 ### 6H2.
 
@@ -432,7 +462,7 @@ avgfood -\> weight
 
 ### 6H3.
 
-Use a model to infer the total causal influence of area on weight. Would increasing the area available to each fox make it heavier (healthier)? You might want to standardize the variables. Re- gardless, use prior predictive simulation to show that your model’s prior predictions stay within the possible outcome range.
+Use a model to infer the total causal influence of area on weight. Would increasing the area available to each fox make it heavier (healthier)? You might want to standardize the variables. Regardless, use prior predictive simulation to show that your model’s prior predictions stay within the possible outcome range.
 
 ### 6H4.
 
